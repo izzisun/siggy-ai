@@ -3,84 +3,73 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Siggy AI Chat</title>
+<title>Siggy AI</title>
 <style>
-  body { font-family: Arial; margin:0; padding:0; background:#f5f5f5; transition: background 0.3s, color 0.3s; }
-  body.dark { background:#1e1e1e; color:#eee; }
-  #chat-container { max-width:600px; margin:50px auto; padding:20px; background:white; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.1); }
-  body.dark #chat-container { background:#2c2c2c; }
-  .message { display:flex; margin:10px 0; }
-  .message.user { justify-content:flex-end; }
-  .bubble { max-width:70%; padding:10px 15px; border-radius:20px; }
-  .user .bubble { background:#4caf50; color:white; border-bottom-right-radius:0; }
-  .assistant .bubble { background:#e0e0e0; color:black; border-bottom-left-radius:0; }
-  body.dark .assistant .bubble { background:#444; color:white; }
-  .avatar { width:40px; height:40px; border-radius:50%; margin-right:10px; }
-  .input-container { display:flex; margin-top:10px; }
-  .input-container input { flex:1; padding:10px; border-radius:20px; border:1px solid #ccc; }
-  .input-container button { padding:10px 20px; border:none; border-radius:20px; margin-left:10px; background:#2196f3; color:white; cursor:pointer; }
-  #toggle-theme { position:fixed; top:10px; right:10px; cursor:pointer; padding:5px 10px; border:1px solid #2196f3; border-radius:5px; background:white; color:#2196f3; }
-  body.dark #toggle-theme { background:#2196f3; color:white; border-color:white; }
+  body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+  header { background: #4b6cb7; color: white; text-align: center; padding: 1rem; font-size: 1.5rem; }
+  #chat { max-width: 600px; margin: 1rem auto; background: white; padding: 1rem; border-radius: 8px; height: 400px; overflow-y: auto; }
+  .message { margin: 0.5rem 0; display: flex; align-items: flex-start; }
+  .message.user img, .message.assistant img { width: 40px; height: 40px; border-radius: 50%; margin-right: 0.5rem; }
+  .message.user .text { background: #e1ffc7; padding: 0.5rem 1rem; border-radius: 12px; }
+  .message.assistant .text { background: #f1f1f1; padding: 0.5rem 1rem; border-radius: 12px; }
+  form { max-width: 600px; margin: 0 auto; display: flex; padding: 0 1rem; }
+  input[type=text] { flex: 1; padding: 0.5rem; border-radius: 20px; border: 1px solid #ccc; }
+  button { display: none; }
 </style>
 </head>
 <body>
-<button id="toggle-theme">🌙 Dark Mode</button>
-<div id="chat-container">
-  <div id="messages"></div>
-  <div class="input-container">
-    <input type="text" id="inputMessage" placeholder="Ketik pesan..." />
-    <button onclick="sendMessage()">Kirim</button>
-  </div>
-</div>
+<header>Siggy AI</header>
+<div id="chat"></div>
+<form id="chatForm">
+  <input type="text" id="messageInput" placeholder="Ketik pesan dan tekan Enter..." autocomplete="off" required>
+  <button type="submit">Send</button>
+</form>
 
 <script>
-  const messagesDiv = document.getElementById("messages")
-  const input = document.getElementById("inputMessage")
-  const sessionId = Date.now().toString() // session unik per user
+  const chatDiv = document.getElementById("chat");
+  const form = document.getElementById("chatForm");
+  const input = document.getElementById("messageInput");
+  const sessionId = "default_session";
 
-  function addMessage(content, role){
-    const msgDiv = document.createElement("div")
-    msgDiv.className = "message " + role
-    const avatar = document.createElement("img")
-    avatar.className = "avatar"
-    avatar.src = role === "user" ? "user.png" : "siggy.png"
-    const bubble = document.createElement("div")
-    bubble.className = "bubble"
-    bubble.innerText = content
-    if(role==="user"){
-      msgDiv.appendChild(bubble)
-      msgDiv.appendChild(avatar)
-    }else{
-      msgDiv.appendChild(avatar)
-      msgDiv.appendChild(bubble)
+  function appendMessage(role, text) {
+    const div = document.createElement("div");
+    div.classList.add("message", role);
+    const img = document.createElement("img");
+    img.src = role === "user" ? "user.png" : "siggy.png"; // default gambar
+    const span = document.createElement("div");
+    span.classList.add("text");
+    span.textContent = text;
+    div.appendChild(img);
+    div.appendChild(span);
+    chatDiv.appendChild(div);
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const message = input.value.trim();
+    if (!message) return;
+    appendMessage("user", message);
+    input.value = "";
+
+    try {
+      const res = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, sessionId })
+      });
+      const data = await res.json();
+      if (data.reply) appendMessage("assistant", data.reply);
+    } catch (err) {
+      console.error(err);
+      appendMessage("assistant", "Error, coba lagi.");
     }
-    messagesDiv.appendChild(msgDiv)
-    messagesDiv.scrollTop = messagesDiv.scrollHeight
-  }
+  });
 
-  async function sendMessage(){
-    const text = input.value.trim()
-    if(!text) return
-    addMessage(text,"user")
-    input.value = ""
-    try{
-      const res = await fetch("/chat",{
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({message:text, sessionId})
-      })
-      const data = await res.json()
-      addMessage(data.reply,"assistant")
-    }catch(e){
-      addMessage("AI error","assistant")
-    }
-  }
-
-  // Toggle dark/light mode
-  const toggle = document.getElementById("toggle-theme")
-  toggle.onclick = ()=>{
-    document.body.classList.toggle("dark")
-  }
+  // Kirim pesan pakai Enter
+  input.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") form.dispatchEvent(new Event("submit"));
+  });
 </script>
 </body>
 </html>
